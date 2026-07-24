@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-ink text-text font-sans;
+  }
+
+  ::selection {
+    @apply bg-brass/30 text-text;
+  }
+
+  :focus-visible {
+    outline: 2px solid #C9A227;
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .stack-card {
+    @apply relative bg-surface border border-border rounded-sm p-5 transition-all duration-200;
+  }
+  .stack-card:hover {
+    @apply border-brass/50 -translate-y-0.5;
+    box-shadow: 0 8px 24px -8px rgba(201, 162, 39, 0.15);
+  }
+  .stack-card::before {
+    content: '';
+    @apply absolute left-0 top-5 bottom-5 w-1 bg-brass rounded-r-sm;
+  }
+
+  .evidence-card {
+    @apply bg-paper text-paper-ink font-mono text-xs rounded-sm p-3 shadow-lg;
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  }
+  .evidence-card:nth-child(odd) {
+    transform: rotate(-1.2deg);
+  }
+  .evidence-card:nth-child(even) {
+    transform: rotate(1deg);
+  }
+  .evidence-card:hover {
+    transform: rotate(0deg) scale(1.02);
+    @apply shadow-xl;
+  }
+
+  .catalog-number {
+    @apply font-mono text-[11px] tracking-widest text-brass uppercase;
+  }
+}
