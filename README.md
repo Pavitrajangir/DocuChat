@@ -82,27 +82,4 @@ Visit `http://localhost:5173`, sign up, upload a real PDF, and ask it a question
 already know the answer to — that's the fastest way to sanity-check retrieval is
 actually working (does the cited excerpt match where the real answer lives in the doc?).
 
-## Verified before delivery
-- All backend files pass `node --check`
-- 8 unit tests pass covering chunk boundary behavior and cosine similarity math
-  (`cd backend && npm test`)
-- Frontend builds cleanly with `npm run build`
-- Server boots and mounts all routes without crashing
 
-**Not yet tested: an actual end-to-end run with real MongoDB + Gemini credentials**,
-same as the Interview Copilot project. You'll hit real things to debug — that's normal.
-
-## Before you use this as a resume project
-Read `utils/chunker.js` and `utils/vectorSearch.js` first — both have inline comments
-explaining a real architectural decision and its tradeoff (fixed-size vs. semantic
-chunking, in-app cosine similarity vs. a dedicated vector database). Those two decisions,
-and being able to explain *when* the alternative would be the right call instead, are
-the actual technical depth this project is meant to demonstrate — write your defense doc
-from those two files.
-
-## Deploying
-Same process as the Interview Copilot project: Render for the backend, Vercel for the
-frontend, `VITE_API_URL` set to the Render URL + `/api`, `FRONTEND_URL` on Render set to
-the exact Vercel origin (no path, no trailing slash) for CORS. The `vercel.json` in this
-project already excludes `/api` from the SPA rewrite from the start — that one cost real
-debugging time last project, so it's fixed here before you hit it.
