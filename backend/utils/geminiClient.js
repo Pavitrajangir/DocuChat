@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -6,12 +6,14 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // (as opposed to a pinned/experimental version that could be deprecated without
 // notice - we hit exactly that problem with a chat model in an earlier project,
 // so this name was checked against current docs rather than assumed).
-const embeddingModel = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+const embeddingModel = genAI.getGenerativeModel({
+  model: "gemini-embedding-001",
+});
 
 // gemini-flash-latest: an alias that auto-points to Google's current flash-tier
 // model, same reasoning as the Interview Copilot project - avoids a hardcoded
 // version string going stale.
-const chatModel = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+const chatModel = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
 // Generates a single embedding vector for a piece of text (a chunk during
 // upload, or a user's question at query time - same model, same vector space,
@@ -42,35 +44,70 @@ information that isn't in the provided context.
 Keep answers concise and directly grounded in the excerpts. When useful, you may quote a short
 relevant phrase from the context.`;
 
+const isRetryableError = (error) => {
+  const msg = error.message || "";
+  return (
+    msg.includes("503") ||
+    msg.includes("overloaded") ||
+    msg.includes("Service Unavailable")
+  );
+};
+
+const startStreamWithRetry = async (promptParts, maxRetries = 3) => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await chatModel.generateContentStream(promptParts);
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries - 1;
+      if (!isRetryableError(error) || isLastAttempt) throw error;
+
+      const delayMs = 1000 * 2 ** attempt; // 1s, 2s, 4s
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+};
+
 // Builds the grounded prompt and streams the response back chunk by chunk.
 // onToken is called with each piece of text as it arrives from the model,
 // so the caller (an Express route) can forward it to the client immediately
 // instead of waiting for the full response.
-const streamRagAnswer = async (question, retrievedChunks, conversationHistory, onToken) => {
+const streamRagAnswer = async (
+  question,
+  retrievedChunks,
+  conversationHistory,
+  onToken,
+) => {
   const contextBlock = retrievedChunks
     .map((c, i) => `[Excerpt ${i + 1}]\n${c.text}`)
-    .join('\n\n');
+    .join("\n\n");
 
   const historyBlock = conversationHistory
     .slice(-6) // last 6 messages only - keeps the prompt from growing unbounded across a long chat
-    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-    .join('\n');
+    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+    .join("\n");
 
   const userPrompt = `Context excerpts from the document:
 """
 ${contextBlock}
 """
 
-${historyBlock ? `Recent conversation:\n${historyBlock}\n` : ''}
+${historyBlock ? `Recent conversation:\n${historyBlock}\n` : ""}
 Question: ${question}`;
 
-  const result = await chatModel.generateContentStream([RAG_SYSTEM_PROMPT, userPrompt]);
+  const result = await startStreamWithRetry([RAG_SYSTEM_PROMPT, userPrompt]);
 
-  let fullText = '';
-  for await (const chunk of result.stream) {
-    const text = chunk.text();
-    fullText += text;
-    onToken(text);
+  let fullText = "";
+  try {
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      fullText += text;
+      onToken(text);
+    }
+  } catch (error) {
+    console.error("Stream interrupted mid-response:", error.message);
+    throw new Error(
+      "The response was interrupted before finishing. Please try asking again.",
+    );
   }
 
   return fullText;

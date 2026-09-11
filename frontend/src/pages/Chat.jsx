@@ -1,16 +1,21 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import api, { API_BASE_URL } from '../api/axiosClient';
+import { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
+import api, { API_BASE_URL } from "../api/axiosClient";
+import ReactMarkdown from "react-markdown";
 
 // Splits a raw streamed response into the plain answer text and the trailing
 // __SOURCES__ / __ERROR__ marker, if present. The backend appends these after
 // the natural-language answer finishes streaming (see chatController.js).
 const splitStreamedPayload = (raw) => {
-  const sourcesMarker = raw.indexOf('\n__SOURCES__');
-  const errorMarker = raw.indexOf('\n__ERROR__');
+  const sourcesMarker = raw.indexOf("\n__SOURCES__");
+  const errorMarker = raw.indexOf("\n__ERROR__");
 
   if (errorMarker !== -1) {
-    return { text: raw.slice(0, errorMarker), sources: null, error: raw.slice(errorMarker + 10) };
+    return {
+      text: raw.slice(0, errorMarker),
+      sources: null,
+      error: raw.slice(errorMarker + 10),
+    };
   }
   if (sourcesMarker !== -1) {
     const text = raw.slice(0, sourcesMarker);
@@ -24,17 +29,78 @@ const splitStreamedPayload = (raw) => {
   return { text: raw, sources: null, error: null };
 };
 
+const markdownComponents = {
+  h1: ({ children }) => (
+    <h3 className="font-display text-base text-text mt-3 mb-1.5 first:mt-0">
+      {children}
+    </h3>
+  ),
+  h2: ({ children }) => (
+    <h3 className="font-display text-base text-text mt-3 mb-1.5 first:mt-0">
+      {children}
+    </h3>
+  ),
+  h3: ({ children }) => (
+    <h4 className="font-semibold text-sm text-text mt-2.5 mb-1 first:mt-0">
+      {children}
+    </h4>
+  ),
+  p: ({ children }) => (
+    <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>
+  ),
+  strong: ({ children }) => (
+    <strong className="font-semibold text-brass-light">{children}</strong>
+  ),
+  ul: ({ children }) => (
+    <ul className="list-disc list-outside pl-5 mb-2 space-y-1">{children}</ul>
+  ),
+  ol: ({ children }) => (
+    <ol className="list-decimal list-outside pl-5 mb-2 space-y-1">
+      {children}
+    </ol>
+  ),
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  code: ({ inline, children }) =>
+    inline ? (
+      <code className="bg-surface-2 text-brass-light px-1.5 py-0.5 rounded text-xs font-mono">
+        {children}
+      </code>
+    ) : (
+      <code className="block bg-ink border border-border rounded-sm p-3 my-2 text-xs font-mono overflow-x-auto text-text">
+        {children}
+      </code>
+    ),
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-brass underline hover:text-brass-light"
+    >
+      {children}
+    </a>
+  ),
+};
+
 const MessageBubble = ({ message }) => {
-  const isUser = message.role === 'user';
+  const isUser = message.role === "user";
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className="max-w-lg">
         <div
           className={`rounded-sm px-4 py-2.5 text-sm ${
-            isUser ? 'bg-sage text-ink' : 'bg-surface text-text border border-border'
+            isUser
+              ? "bg-sage text-ink"
+              : "bg-surface text-text border border-border"
           }`}
         >
-          <p className="whitespace-pre-wrap">{message.content}</p>
+          {isUser ? (
+            <p className="whitespace-pre-wrap">{message.content}</p>
+          ) : (
+            <ReactMarkdown components={markdownComponents}>
+              {message.content}
+            </ReactMarkdown>
+          )}
         </div>
 
         {message.sources?.length > 0 && (
@@ -45,7 +111,8 @@ const MessageBubble = ({ message }) => {
                 <div key={i} className="evidence-card w-40">
                   <p className="line-clamp-4">{s.text}…</p>
                   <p className="mt-2 pt-1.5 border-t border-paper-ink/15 text-[10px] opacity-70">
-                    excerpt #{s.chunkIndex} · match {(s.score * 100).toFixed(0)}%
+                    excerpt #{s.chunkIndex} · match {(s.score * 100).toFixed(0)}
+                    %
                   </p>
                 </div>
               ))}
@@ -59,12 +126,12 @@ const MessageBubble = ({ message }) => {
 
 const Chat = () => {
   const { id } = useParams();
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState("");
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -86,25 +153,29 @@ const Chat = () => {
   }, [id]);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim() || streaming) return;
 
-    const userMessage = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMessage, { role: 'assistant', content: '' }]);
-    setInput('');
+    const userMessage = { role: "user", content: input };
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      { role: "assistant", content: "" },
+    ]);
+    setInput("");
     setStreaming(true);
-    setError('');
+    setError("");
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await fetch(`${API_BASE_URL}/chat/${id}/message`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ message: userMessage.content }),
@@ -112,7 +183,7 @@ const Chat = () => {
 
       if (!response.ok || !response.body) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || 'Failed to get a response');
+        throw new Error(errData.message || "Failed to get a response");
       }
 
       // Read the streamed response chunk by chunk and update the last
@@ -120,14 +191,15 @@ const Chat = () => {
       // instead of waiting for the full answer.
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let rawAccumulated = '';
+      let rawAccumulated = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         rawAccumulated += decoder.decode(value, { stream: true });
-        const { text, error: streamError } = splitStreamedPayload(rawAccumulated);
+        const { text, error: streamError } =
+          splitStreamedPayload(rawAccumulated);
 
         if (streamError) {
           setError(streamError);
@@ -136,7 +208,7 @@ const Chat = () => {
 
         setMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: 'assistant', content: text };
+          updated[updated.length - 1] = { role: "assistant", content: text };
           return updated;
         });
       }
@@ -146,17 +218,26 @@ const Chat = () => {
       const { text: finalText, sources } = splitStreamedPayload(rawAccumulated);
       setMessages((prev) => {
         const updated = [...prev];
-        updated[updated.length - 1] = { role: 'assistant', content: finalText, sources };
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: finalText,
+          sources,
+        };
         return updated;
       });
     } catch (err) {
-      setError(err.message || 'Something went wrong');
+      setError(err.message || "Something went wrong");
     } finally {
       setStreaming(false);
     }
   };
 
-  if (loading) return <p className="text-center mt-10 text-text-muted font-mono text-sm">Opening the reading room…</p>;
+  if (loading)
+    return (
+      <p className="text-center mt-10 text-text-muted font-mono text-sm">
+        Opening the reading room…
+      </p>
+    );
 
   return (
     <div className="max-w-2xl mx-auto mt-6 px-4 flex flex-col h-[calc(100vh-100px)]">
@@ -166,8 +247,12 @@ const Chat = () => {
       <div className="flex-1 overflow-y-auto space-y-5 pb-4">
         {messages.length === 0 && (
           <div className="text-center mt-16">
-            <p className="font-display text-lg text-text-muted mb-1">The room is quiet</p>
-            <p className="text-sm text-text-muted">Ask a question about this document to begin.</p>
+            <p className="font-display text-lg text-text-muted mb-1">
+              The room is quiet
+            </p>
+            <p className="text-sm text-text-muted">
+              Ask a question about this document to begin.
+            </p>
           </div>
         )}
         {messages.map((m, i) => (
@@ -190,7 +275,7 @@ const Chat = () => {
           disabled={streaming || !input.trim()}
           className="bg-brass text-ink text-sm font-medium rounded-sm px-4 py-2.5 hover:bg-brass-light transition-colors disabled:opacity-50"
         >
-          {streaming ? 'Searching…' : 'Ask'}
+          {streaming ? "Searching…" : "Ask"}
         </button>
       </form>
     </div>
